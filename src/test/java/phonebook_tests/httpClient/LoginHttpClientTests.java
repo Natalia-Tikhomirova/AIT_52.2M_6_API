@@ -26,97 +26,106 @@ public class LoginHttpClientTests {
 
     @Test
     public void LoginSuccessTest() throws IOException {
-
-        // Подготавливаем тело запроса
-        String jsonBody =
-                """
-                                {
-                                  "username": "test1739192044000@gmail.com",
-                                  "password": "Password@1A"
-                                }
-                        """;
-        // Отправляем запрос
+        // 1️⃣ Подготавливаем JSON-тело запроса с логином и паролем
+        String jsonBody = """
+                        {
+                          "username": "test1739192044000@gmail.com",
+                           "password": "Password@1A"                                
+                        }
+                """;
+        // 2️⃣ Отправляем HTTP POST-запрос на сервер с JSON-данными
         Response response = Request.Post(LOGIN_URL)
-                .bodyString(jsonBody, ContentType.APPLICATION_JSON)
-                .execute();
-        System.out.println(response);
+                .bodyString(jsonBody, ContentType.APPLICATION_JSON).execute();
+        // 3️⃣ Выводим объект `Response`, чтобы посмотреть его в отладке (возвращает ссылку на объект)
+        System.out.println(response); // Пример: org.apache.http.client.fluent.Response@3549bca9
 
+        // 4️⃣ Читаем JSON-ответ от сервера как строку
         String responseJson = response.returnContent().asString();
-        System.out.println(responseJson);
+        System.out.println(responseJson); // Пример: {"token":"eyJhbGciOiJIUzI1NiJ9..."}
 
-        JsonParser.parseString(responseJson);
-
-        // Распарсим JSON, чтобы извлекать нужные нам ключи и значения из него
+        // 5️⃣ Парсим, разбираем структуру JSON-ответа, чтобы извлечь токен
         JsonElement element = JsonParser.parseString(responseJson);
-        JsonElement token = element.getAsJsonObject().get("token");
+        JsonElement token = element.getAsJsonObject().get("token"); // Пример: "eyJhbGciOiJIUzI1NiJ9..."
 
+        // 6️⃣ Выводим извлечённый токен в консоль для отладки
         System.out.println("Extracted token: " + token);
 
+        // 7️⃣ Проверяем, что токен не null (валидный ответ)
         Assert.assertNotNull(token);
     }
 
     @Test
     public void LoginSuccessWithDtoTest() throws IOException {
+        // 1️⃣ Формируем объект запроса с логином и паролем
         AuthRequestDto requestDto = AuthRequestDto.builder()
                 .username("portishead@gmail.com")
                 .password("Password@1")
                 .build();
 
+        // 2️⃣ Выполняем HTTP POST-запрос с телом запроса в формате JSON
         Response response = Request.Post(LOGIN_URL)
                 .bodyString(GSON.toJson(requestDto), ContentType.APPLICATION_JSON)
                 .execute();
 
-        System.out.println(response);
-
+        // 3️⃣ Читаем JSON-ответ от сервера в виде строки
         String responseJson = response.returnContent().asString();
-        System.out.println(responseJson);
+        System.out.println(responseJson); // Пример: {"token":"eyJhbGciOiJIUzI1NiJ9..."}
 
+        // 4️⃣ Преобразуем JSON-ответ в объект AuthResponseDto
         AuthResponseDto authResponseDto = GSON.fromJson(responseJson, AuthResponseDto.class);
-        System.out.println(authResponseDto);
+        System.out.println(authResponseDto); // Пример: AuthResponseDto(token=eyJhbGciOiJIUzI1NiJ9.eyJyb...)
 
+        // 5️⃣ Извлекаем токен авторизации из ответа
         String token = authResponseDto.getToken();
-        System.out.println(token);
+        System.out.println(token); // Пример: "eyJhbGciOiJIUzI1NiJ9..."
+
+        // 6️⃣ Проверяем, что токен не пустой (валидный ответ)
+        Assert.assertNotNull(token, "Token should not be null");
     }
 
     @Test
     public void LoginErrorWithDtoTest() throws IOException {
-        // Сформировали невалидный body
+        // 1️⃣ Формируем объект запроса с некорректными данными
         AuthRequestDto requestDto = AuthRequestDto.builder()
                 .username("portishead333333333333333@gmail.com")
                 .password("Password@1")
                 .build();
 
-        // Выполнили запрос на логин
+        // 2️⃣ Отправляем POST-запрос с JSON-телом
         Response response = Request.Post(LOGIN_URL)
                 .bodyString(GSON.toJson(requestDto), ContentType.APPLICATION_JSON)
                 .execute();
 
-        // Получить сырой RAW ответ
+        // 3️⃣ Получаем сырой raw HTTP-ответ
         HttpResponse httpResponse = response.returnResponse();
-        System.out.println("Получить сырой RAW ответ: " + httpResponse);
+        System.out.println("Сырой raw HTTP-ответ: " + httpResponse);
 
-        // Извлечь тело ответ:
+        // 4️⃣ Извлекаем тело ответа как поток
+        //* HTTP-ответ может быть большим, и InputStream позволяет читать его порциями, не загружая весь ответ в память сразу
         InputStream content = httpResponse.getEntity().getContent();
+        //* BufferedReader(...) – оборачивает InputStreamReader, обеспечивая буферизированное чтение (чтение данных блоками).
         BufferedReader reader = new BufferedReader(new InputStreamReader(content));
 
+        // 5️⃣ Читаем данные из ответа построчно
+        //* StringBuilder используется для эффективного объединения строк, так как строки (String) в Java неизменяемы.
+        //* В отличие от String, StringBuilder изменяет свой буфер памяти, что быстрее.
         StringBuilder sb = new StringBuilder();
-        String line; // Временная переменная для хранения 1 строки HTTP-ответа
+        String line; // line – временная переменная для хранения одной строки, считанной из HTTP-ответа.
         while ((line = reader.readLine()) != null) {
-            sb.append(line);
-            System.out.println(line);
+            sb.append(line); // Записываем каждую строку в StringBuilder
+            System.out.println(line);  // Печатает каждую строку в цикле пока строки не закончатся
         }
-        // парсим JSON в объект ErrorDto
+
+        // 6️⃣ Парсим JSON-ответ в объект ErrorDto
         ErrorDto errorDto = GSON.fromJson(sb.toString(), ErrorDto.class);
         System.out.println(errorDto);
-        System.out.println(errorDto.getError());
-        softAssert.assertEquals(errorDto.getError(), "Unauthorized");
-        System.out.println(errorDto.getStatus());
-        softAssert.assertEquals(errorDto.getStatus(), 401);
-        System.out.println(errorDto.getMessage());
-        softAssert.assertEquals(errorDto.getMessage(), "Login or Password incorrect");
-        System.out.println(errorDto.getPath());
-        softAssert.assertEquals(errorDto.getPath(), "/v1/user/login/usernamepassword");
 
-        softAssert.assertAll(); // Итог Ассёртов
+        // 7️⃣ Проверяем, что сервер вернул ошибку 401 (Unauthorized)
+        SoftAssert softAssert = new SoftAssert();
+        softAssert.assertEquals(errorDto.getStatus(), 401, "Status should be 401");
+        softAssert.assertEquals(errorDto.getError(), "Unauthorized");
+        softAssert.assertEquals(errorDto.getMessage(), "Login or Password incorrect");
+        softAssert.assertEquals(errorDto.getPath(), "/v1/user/login/usernamepassword");
+        softAssert.assertAll();
     }
 }
